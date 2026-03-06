@@ -12,7 +12,6 @@ function parseMonth(month: string) {
 
 type SessionRow = {
   id: string;
-  title: string;
   date: Date;
   createdAt: Date;
   posts: PostRow[];
@@ -21,7 +20,6 @@ type SessionRow = {
 type PostRow = {
   id: string;
   text: string;
-  authorNameRaw: string;
   createdAt: Date;
   _count: { votes: number };
 };
@@ -59,16 +57,18 @@ export async function GET(
       s.posts.map((p: PostRow) => ({
         postId: p.id,
         sessionId: s.id,
-        sessionTitle: s.title,
+        date: s.date,
         text: p.text,
-        authorName: p.authorNameRaw,
         createdAt: p.createdAt,
         points: p._count.votes,
       })),
     )
     .sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
-      return a.createdAt.getTime() - b.createdAt.getTime();
+      if (b.date.getTime() !== a.date.getTime()) {
+        return b.date.getTime() - a.date.getTime();
+      }
+      return b.createdAt.getTime() - a.createdAt.getTime();
     });
 
   return NextResponse.json({ sessions, ranking });
