@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
+const bcrypt = require("bcryptjs") as {
+  compare: (plain: string, hashed: string) => Promise<boolean>;
+};
 import { prisma } from "@/lib/prisma";
 import { closeSchema } from "@/lib/validation";
 
