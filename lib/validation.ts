@@ -5,6 +5,11 @@ export const createSessionSchema = z.object({
   firstPost: z.string().trim().min(1, "おもしろシーンは必須です"),
 });
 
+export const postSchema = z.object({
+  sessionId: z.string().min(1),
+  text: z.string().trim().min(1, "おもしろシーンは必須です"),
+});
+
 export const voteSchema = z.object({
   sessionId: z.string().min(1),
   postId: z.string().min(1),
