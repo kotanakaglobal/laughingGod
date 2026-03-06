@@ -7,7 +7,7 @@ export const createSessionSchema = z.object({
 
 export const voteSchema = z.object({
   sessionId: z.string().min(1),
-  postIds: z.array(z.string().min(1)).min(1),
+  postId: z.string().min(1),
 });
 
 export const closeSchema = z.object({
