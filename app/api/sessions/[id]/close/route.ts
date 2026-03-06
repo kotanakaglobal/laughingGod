@@ -1,29 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-const bcrypt = require("bcryptjs") as {
-  compare: (plain: string, hashed: string) => Promise<boolean>;
-};
 import { prisma } from "@/lib/prisma";
 import { closeSchema } from "@/lib/validation";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const body = await req.json();
-  const parsed = closeSchema.safeParse(body);
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  const body = await req.json().catch(() => ({}));
+  const parsed = closeSchema.safeParse({
+    sessionId: params.id || body.sessionId,
+  });
 
   if (!parsed.success) {
-    return NextResponse.json({ error: "PINは4桁で入力してください" }, { status: 400 });
+    return NextResponse.json({ error: "入力が不正です" }, { status: 400 });
   }
 
-  const session = await prisma.session.findUnique({ where: { id: params.id } });
-  if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 });
-  if (session.status === "closed") return NextResponse.json({ error: "既に締切済みです" }, { status: 400 });
+  const existing = await prisma.session.findUnique({
+    where: { id: parsed.data.sessionId },
+  });
 
-  const ok = await bcrypt.compare(parsed.data.pin, session.pinHash);
-  if (!ok) return NextResponse.json({ error: "PINが違います" }, { status: 401 });
+  if (!existing) {
+    return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  }
 
-  const updated = await prisma.session.update({
-    where: { id: params.id },
+  const session = await prisma.session.update({
+    where: { id: parsed.data.sessionId },
     data: { status: "closed" },
   });
 
-  return NextResponse.json({ session: updated });
+  return NextResponse.json({ session });
 }
