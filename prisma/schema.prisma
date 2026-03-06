@@ -10,10 +10,8 @@ datasource db {
 
 model Session {
   id        String        @id @default(uuid())
-  title     String
   date      DateTime
   status    SessionStatus @default(open)
-  pinHash   String
   createdAt DateTime      @default(now())
   posts     Post[]
   votes     Vote[]
@@ -26,8 +24,9 @@ model Post {
   authorNameNorm String
   text           String
   createdAt      DateTime @default(now())
-  session        Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  votes          Vote[]
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  votes   Vote[]
 
   @@index([sessionId, createdAt])
 }
@@ -35,12 +34,13 @@ model Post {
 model Vote {
   id            String   @id @default(uuid())
   sessionId     String
+  postId        String
   voterNameRaw  String
   voterNameNorm String
-  postId        String
   createdAt     DateTime @default(now())
-  session       Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  post          Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, voterNameNorm, postId])
   @@index([sessionId, voterNameNorm])
