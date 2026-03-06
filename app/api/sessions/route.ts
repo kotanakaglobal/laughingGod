@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { normalizeName } from "@/lib/normalize";
 import { createSessionSchema } from "@/lib/validation";
 
 export async function GET() {
@@ -8,7 +7,7 @@ export async function GET() {
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     include: {
       posts: {
-        orderBy: { createdAt: "asc" },
+        orderBy: [{ createdAt: "desc" }],
         include: {
           _count: {
             select: { votes: true },
@@ -29,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "入力が不正です" }, { status: 400 });
   }
 
-  const { date, authorName, firstPost } = parsed.data;
+  const { date, firstPost } = parsed.data;
 
   const session = await prisma.session.create({
     data: {
@@ -37,8 +36,8 @@ export async function POST(req: NextRequest) {
       posts: {
         create: {
           text: firstPost.trim(),
-          authorNameRaw: authorName.trim(),
-          authorNameNorm: normalizeName(authorName),
+          authorNameRaw: "",
+          authorNameNorm: "",
         },
       },
     },
