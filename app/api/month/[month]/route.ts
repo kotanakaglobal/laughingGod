@@ -10,11 +10,32 @@ function parseMonth(month: string) {
   return { start, end };
 }
 
-export async function GET(_: Request, { params }: { params: { month: string } }) {
-  const range = parseMonth(params.month);
-  if (!range) return NextResponse.json({ error: "Invalid month" }, { status: 400 });
+type SessionRow = {
+  id: string;
+  title: string;
+  date: Date;
+  createdAt: Date;
+  posts: PostRow[];
+};
 
-  const sessions = await prisma.session.findMany({
+type PostRow = {
+  id: string;
+  text: string;
+  authorNameRaw: string;
+  createdAt: Date;
+  _count: { votes: number };
+};
+
+export async function GET(
+  _: Request,
+  { params }: { params: { month: string } },
+) {
+  const range = parseMonth(params.month);
+  if (!range) {
+    return NextResponse.json({ error: "Invalid month" }, { status: 400 });
+  }
+
+  const sessions = (await prisma.session.findMany({
     where: {
       date: {
         gte: range.start,
@@ -31,11 +52,11 @@ export async function GET(_: Request, { params }: { params: { month: string } })
         },
       },
     },
-  });
+  })) as unknown as SessionRow[];
 
   const ranking = sessions
-    .flatMap((s) =>
-      s.posts.map((p) => ({
+    .flatMap((s: SessionRow) =>
+      s.posts.map((p: PostRow) => ({
         postId: p.id,
         sessionId: s.id,
         sessionTitle: s.title,
