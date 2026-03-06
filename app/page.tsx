@@ -29,6 +29,20 @@ type RankedPost = {
 
 const STORAGE_KEY = "laughing-god-liked-post-ids";
 
+async function safeParseJsonResponse(res: Response) {
+  const text = await res.text();
+
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 export default function HomePage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [firstPost, setFirstPost] = useState("");
@@ -57,9 +71,21 @@ export default function HomePage() {
   }
 
   async function loadSessions() {
-    const res = await fetch("/api/sessions", { cache: "no-store" });
-    const data = await res.json();
-    setSessions(data.sessions ?? []);
+    setError("");
+
+    try {
+      const res = await fetch("/api/sessions", { cache: "no-store" });
+      const data = await safeParseJsonResponse(res);
+
+      if (!res.ok) {
+        throw new Error(data?.error || `一覧取得に失敗しました (${res.status})`);
+      }
+
+      setSessions(data?.sessions ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "一覧取得に失敗しました");
+      setSessions([]);
+    }
   }
 
   useEffect(() => {
@@ -83,10 +109,10 @@ export default function HomePage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await safeParseJsonResponse(res);
 
       if (!res.ok) {
-        throw new Error(data.error || "投稿に失敗しました");
+        throw new Error(data?.error || `投稿に失敗しました (${res.status})`);
       }
 
       setFirstPost("");
@@ -118,10 +144,10 @@ export default function HomePage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await safeParseJsonResponse(res);
 
       if (!res.ok) {
-        throw new Error(data.error || "いいねに失敗しました");
+        throw new Error(data?.error || `いいねに失敗しました (${res.status})`);
       }
 
       saveLikedPostIds([...likedPostIds, postId]);
