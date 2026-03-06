@@ -1,11 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Post = {
   id: string;
   text: string;
-  authorNameRaw: string;
   createdAt: string;
   _count?: { votes: number };
 };
@@ -18,12 +17,22 @@ type Session = {
   posts: Post[];
 };
 
+type RankedPost = {
+  id: string;
+  sessionId: string;
+  text: string;
+  date: string;
+  createdAt: string;
+  votes: number;
+  status: "open" | "closed";
+};
+
 export default function HomePage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [authorName, setAuthorName] = useState("");
   const [firstPost, setFirstPost] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
+  const [voteLoadingId, setVoteLoadingId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   async function loadSessions() {
@@ -49,7 +58,6 @@ export default function HomePage() {
         },
         body: JSON.stringify({
           date,
-          authorName,
           firstPost,
         }),
       });
@@ -57,51 +65,96 @@ export default function HomePage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "作成に失敗しました");
+        throw new Error(data.error || "投稿に失敗しました");
       }
 
-      setAuthorName("");
       setFirstPost("");
       await loadSessions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "作成に失敗しました");
+      setError(err instanceof Error ? err.message : "投稿に失敗しました");
     } finally {
       setLoading(false);
     }
   }
 
+  async function handleLike(sessionId: string, postId: string) {
+    setVoteLoadingId(postId);
+    setError("");
+
+    try {
+      const res = await fetch("/api/votes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sessionId,
+          postIds: [postId],
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "いいねに失敗しました");
+      }
+
+      await loadSessions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "いいねに失敗しました");
+    } finally {
+      setVoteLoadingId(null);
+    }
+  }
+
+  const rankedPosts = useMemo<RankedPost[]>(() => {
+    return sessions
+      .flatMap((session) =>
+        session.posts.map((post) => ({
+          id: post.id,
+          sessionId: session.id,
+          text: post.text,
+          date: session.date,
+          createdAt: post.createdAt,
+          votes: post._count?.votes ?? 0,
+          status: session.status,
+        })),
+      )
+      .sort((a, b) => {
+        if (b.votes !== a.votes) return b.votes - a.votes;
+        if (new Date(b.date).getTime() !== new Date(a.date).getTime()) {
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        }
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+  }, [sessions]);
+
   return (
     <main style={{ padding: 16, background: "#f3f4f6", minHeight: "100vh" }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 16 }}>
-        Laughing God
-      </h1>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 16 }}>
+          Laughing God
+        </h1>
 
-      <div
-        style={{
-          maxWidth: 980,
-          margin: "0 auto",
-          display: "grid",
-          gap: 16,
-        }}
-      >
         <section
           style={{
             background: "#fff",
+            border: "1px solid #e5e7eb",
             borderRadius: 16,
             padding: 20,
-            border: "1px solid #e5e7eb",
+            marginBottom: 20,
           }}
         >
-          <h2 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24 }}>
-            最初の投稿を作成
+          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 16 }}>
+            新規投稿
           </h2>
 
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: 18 }}>
+            <div style={{ marginBottom: 16 }}>
               <label
-                style={{ display: "block", fontSize: 16, fontWeight: 600, marginBottom: 8 }}
+                style={{ display: "block", fontWeight: 600, marginBottom: 8 }}
               >
-                おもしろかったこと
+                おもしろシーン
               </label>
               <textarea
                 value={firstPost}
@@ -110,35 +163,16 @@ export default function HomePage() {
                 style={{
                   width: "100%",
                   border: "1px solid #9ca3af",
-                  borderRadius: 4,
+                  borderRadius: 8,
                   padding: 12,
                   fontSize: 16,
                 }}
               />
             </div>
 
-            <div style={{ marginBottom: 18 }}>
+            <div style={{ marginBottom: 16 }}>
               <label
-                style={{ display: "block", fontSize: 16, fontWeight: 600, marginBottom: 8 }}
-              >
-                名前
-              </label>
-              <input
-                value={authorName}
-                onChange={(e) => setAuthorName(e.target.value)}
-                style={{
-                  width: "100%",
-                  border: "1px solid #9ca3af",
-                  borderRadius: 4,
-                  padding: 12,
-                  fontSize: 16,
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: 18 }}>
-              <label
-                style={{ display: "block", fontSize: 16, fontWeight: 600, marginBottom: 8 }}
+                style={{ display: "block", fontWeight: 600, marginBottom: 8 }}
               >
                 日付
               </label>
@@ -149,7 +183,7 @@ export default function HomePage() {
                 style={{
                   width: "100%",
                   border: "1px solid #9ca3af",
-                  borderRadius: 4,
+                  borderRadius: 8,
                   padding: 12,
                   fontSize: 16,
                 }}
@@ -165,17 +199,17 @@ export default function HomePage() {
               disabled={loading}
               style={{
                 width: "100%",
-                background: "#000",
+                background: "#111827",
                 color: "#fff",
-                borderRadius: 12,
-                padding: "14px 16px",
-                fontSize: 18,
-                fontWeight: 700,
                 border: "none",
+                borderRadius: 10,
+                padding: "14px 16px",
+                fontSize: 16,
+                fontWeight: 700,
                 cursor: "pointer",
               }}
             >
-              {loading ? "作成中..." : "投稿する"}
+              {loading ? "投稿中..." : "投稿する"}
             </button>
           </form>
         </section>
@@ -183,55 +217,80 @@ export default function HomePage() {
         <section
           style={{
             background: "#fff",
+            border: "1px solid #e5e7eb",
             borderRadius: 16,
             padding: 20,
-            border: "1px solid #e5e7eb",
           }}
         >
-          <h2 style={{ fontSize: 28, fontWeight: 700, marginBottom: 20 }}>
-            セッション一覧
+          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 16 }}>
+            おもしろ名場面記録
           </h2>
 
-          {sessions.length === 0 ? (
-            <p>まだセッションはありません。</p>
+          {rankedPosts.length === 0 ? (
+            <p>まだ投稿はありません。</p>
           ) : (
-            <div style={{ display: "grid", gap: 16 }}>
-              {sessions.map((session) => (
+            <div style={{ display: "grid", gap: 12 }}>
+              {rankedPosts.map((post, index) => (
                 <div
-                  key={session.id}
+                  key={post.id}
                   style={{
                     border: "1px solid #e5e7eb",
                     borderRadius: 12,
                     padding: 16,
+                    background: "#f9fafb",
                   }}
                 >
-                  <div style={{ marginBottom: 10, fontWeight: 700 }}>
-                    日付: {new Date(session.date).toLocaleDateString("ja-JP")}
-                  </div>
-                  <div style={{ marginBottom: 10 }}>
-                    状態: {session.status === "open" ? "受付中" : "締切"}
+                  <div
+                    style={{
+                      fontSize: 14,
+                      color: "#6b7280",
+                      marginBottom: 8,
+                    }}
+                  >
+                    #{index + 1} ・ {new Date(post.date).toLocaleDateString("ja-JP")}
                   </div>
 
-                  <div style={{ display: "grid", gap: 8 }}>
-                    {session.posts.map((post) => (
-                      <div
-                        key={post.id}
-                        style={{
-                          padding: 12,
-                          borderRadius: 10,
-                          background: "#f9fafb",
-                          border: "1px solid #e5e7eb",
-                        }}
-                      >
-                        <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                          {post.authorNameRaw}
-                        </div>
-                        <div style={{ marginBottom: 6 }}>{post.text}</div>
-                        <div style={{ fontSize: 14, color: "#6b7280" }}>
-                          票数: {post._count?.votes ?? 0}
-                        </div>
-                      </div>
-                    ))}
+                  <div
+                    style={{
+                      fontSize: 17,
+                      fontWeight: 600,
+                      marginBottom: 12,
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {post.text}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ fontWeight: 700 }}>👍 {post.votes}</div>
+
+                    <button
+                      type="button"
+                      disabled={voteLoadingId === post.id || post.status !== "open"}
+                      onClick={() => handleLike(post.sessionId, post.id)}
+                      style={{
+                        background: post.status === "open" ? "#111827" : "#9ca3af",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 8,
+                        padding: "10px 14px",
+                        fontWeight: 700,
+                        cursor: post.status === "open" ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      {post.status === "open"
+                        ? voteLoadingId === post.id
+                          ? "送信中..."
+                          : "いいね"
+                        : "締切"}
+                    </button>
                   </div>
                 </div>
               ))}
