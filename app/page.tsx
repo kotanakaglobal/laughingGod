@@ -27,13 +27,34 @@ type RankedPost = {
   status: "open" | "closed";
 };
 
+const STORAGE_KEY = "laughing-god-liked-post-ids";
+
 export default function HomePage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [firstPost, setFirstPost] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [likedPostIds, setLikedPostIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [voteLoadingId, setVoteLoadingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setLikedPostIds(parsed.filter((v) => typeof v === "string"));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  function saveLikedPostIds(nextIds: string[]) {
+    setLikedPostIds(nextIds);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextIds));
+  }
 
   async function loadSessions() {
     const res = await fetch("/api/sessions", { cache: "no-store" });
@@ -78,6 +99,10 @@ export default function HomePage() {
   }
 
   async function handleLike(sessionId: string, postId: string) {
+    if (likedPostIds.includes(postId)) {
+      return;
+    }
+
     setVoteLoadingId(postId);
     setError("");
 
@@ -89,7 +114,7 @@ export default function HomePage() {
         },
         body: JSON.stringify({
           sessionId,
-          postIds: [postId],
+          postId,
         }),
       });
 
@@ -99,6 +124,7 @@ export default function HomePage() {
         throw new Error(data.error || "いいねに失敗しました");
       }
 
+      saveLikedPostIds([...likedPostIds, postId]);
       await loadSessions();
     } catch (err) {
       setError(err instanceof Error ? err.message : "いいねに失敗しました");
@@ -230,70 +256,88 @@ export default function HomePage() {
             <p>まだ投稿はありません。</p>
           ) : (
             <div style={{ display: "grid", gap: 12 }}>
-              {rankedPosts.map((post, index) => (
-                <div
-                  key={post.id}
-                  style={{
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 12,
-                    padding: 16,
-                    background: "#f9fafb",
-                  }}
-                >
+              {rankedPosts.map((post, index) => {
+                const alreadyLiked = likedPostIds.includes(post.id);
+
+                return (
                   <div
+                    key={post.id}
                     style={{
-                      fontSize: 14,
-                      color: "#6b7280",
-                      marginBottom: 8,
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 12,
+                      padding: 16,
+                      background: "#f9fafb",
                     }}
                   >
-                    #{index + 1} ・ {new Date(post.date).toLocaleDateString("ja-JP")}
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 17,
-                      fontWeight: 600,
-                      marginBottom: 12,
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {post.text}
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: 12,
-                    }}
-                  >
-                    <div style={{ fontWeight: 700 }}>👍 {post.votes}</div>
-
-                    <button
-                      type="button"
-                      disabled={voteLoadingId === post.id || post.status !== "open"}
-                      onClick={() => handleLike(post.sessionId, post.id)}
+                    <div
                       style={{
-                        background: post.status === "open" ? "#111827" : "#9ca3af",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: 8,
-                        padding: "10px 14px",
-                        fontWeight: 700,
-                        cursor: post.status === "open" ? "pointer" : "not-allowed",
+                        fontSize: 14,
+                        color: "#6b7280",
+                        marginBottom: 8,
                       }}
                     >
-                      {post.status === "open"
-                        ? voteLoadingId === post.id
-                          ? "送信中..."
-                          : "いいね"
-                        : "締切"}
-                    </button>
+                      #{index + 1} ・ {new Date(post.date).toLocaleDateString("ja-JP")}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 17,
+                        fontWeight: 600,
+                        marginBottom: 12,
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {post.text}
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ fontWeight: 700 }}>👍 {post.votes}</div>
+
+                      <button
+                        type="button"
+                        disabled={
+                          voteLoadingId === post.id ||
+                          post.status !== "open" ||
+                          alreadyLiked
+                        }
+                        onClick={() => handleLike(post.sessionId, post.id)}
+                        style={{
+                          background:
+                            post.status !== "open"
+                              ? "#9ca3af"
+                              : alreadyLiked
+                                ? "#6b7280"
+                                : "#111827",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 8,
+                          padding: "10px 14px",
+                          fontWeight: 700,
+                          cursor:
+                            post.status !== "open" || alreadyLiked
+                              ? "not-allowed"
+                              : "pointer",
+                        }}
+                      >
+                        {post.status !== "open"
+                          ? "締切"
+                          : alreadyLiked
+                            ? "いいね済み"
+                            : voteLoadingId === post.id
+                              ? "送信中..."
+                              : "いいね"}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
