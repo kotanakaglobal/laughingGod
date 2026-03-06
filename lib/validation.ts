@@ -1,23 +1,17 @@
 import { z } from "zod";
 
-export const sessionSchema = z.object({
-  title: z.string().trim().min(1).max(100),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  pin: z.string().regex(/^\d{4}$/),
-});
-
-export const postSchema = z.object({
-  sessionId: z.string().uuid(),
-  authorName: z.string().trim().min(1).max(40),
-  text: z.string().trim().min(1).max(280),
+export const createSessionSchema = z.object({
+  date: z.string().min(1, "日付は必須です"),
+  authorName: z.string().trim().min(1, "名前は必須です"),
+  firstPost: z.string().trim().min(1, "おもしろかったことは必須です"),
 });
 
 export const voteSchema = z.object({
-  sessionId: z.string().uuid(),
-  voterName: z.string().trim().min(1).max(40),
-  postIds: z.array(z.string().uuid()).min(1).max(2),
+  sessionId: z.string().min(1),
+  voterName: z.string().trim().min(1, "名前は必須です"),
+  postIds: z.array(z.string().min(1)).min(1).max(2),
 });
 
 export const closeSchema = z.object({
-  pin: z.string().regex(/^\d{4}$/),
+  sessionId: z.string().min(1),
 });
