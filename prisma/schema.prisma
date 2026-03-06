@@ -32,18 +32,15 @@ model Post {
 }
 
 model Vote {
-  id            String   @id @default(uuid())
-  sessionId     String
-  postId        String
-  voterNameRaw  String
-  voterNameNorm String
-  createdAt     DateTime @default(now())
+  id        String   @id @default(uuid())
+  sessionId String
+  postId    String
+  createdAt DateTime @default(now())
 
   session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  @@unique([sessionId, voterNameNorm, postId])
-  @@index([sessionId, voterNameNorm])
+  @@index([sessionId, postId])
 }
 
 enum SessionStatus {
